@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudentMoney Application</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Hide scrollbar for clean UI navigation */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 transition-colors duration-200 min-h-screen flex flex-col">
+
+  <!-- Floating Toast Notification -->
+  <div id="toast" class="fixed top-5 right-5 z-50 hidden bg-slate-800 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 items-center gap-2 animate-bounce">
+    <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
+    <span id="toast-message" class="text-sm font-medium">Notification</span>
+  </div>
+
+  <!-- Main Container -->
+  <div id="app" class="min-h-screen flex flex-col justify-between"></div>
+
+  <!-- Transaction Modal Template Container -->
+  <div id="modal-container"></div>
+
+  <script>
+    // Initial Data Structures
+    const INITIAL_TRANSACTIONS = [
+      { id: 1, title: 'Campus Bookstore - Textbooks', amount: 84.50, type: 'expense', category: 'Books & Supplies', date: '2026-09-24' },
+      { id: 2, title: 'Campus Dining Meal Plan', amount: 120.00, type: 'expense', category: 'Food & Dining', date: '2026-09-22' },
+      { id: 3, title: 'Part-time Tutoring Stipend', amount: 250.00, type: 'income', category: 'Income', date: '2026-09-20' },
+      { id: 4, title: 'Monthly Spotify Student Sub', amount: 5.99, type: 'expense', category: 'Entertainment', date: '2026-09-18' },
+      { id: 5, title: 'Dorm Laundry Card Refill', amount: 15.00, type: 'expense', category: 'Personal', date: '2026-09-15' },
+      { id: 6, title: 'Parent Allowance Transfer', amount: 300.00, type: 'income', category: 'Allowance', date: '2026-09-01' },
+      { id: 7, title: 'Campus Coffee Shop', amount: 14.50, type: 'expense', category: 'Food & Dining', date: '2026-09-12' },
+      { id: 8, title: 'Bus Pass Monthly Top-up', amount: 25.00, type: 'expense', category: 'Transport', date: '2026-09-10' },
+      { id: 9, title: 'Lab Supplies & Safety Goggles', amount: 32.00, type: 'expense', category: 'Books & Supplies', date: '2026-09-08' },
+      { id: 10, title: 'Campus Movie Night Ticket', amount: 12.00, type: 'expense', category: 'Entertainment', date: '2026-09-05' }
+    ];
+
+    const INITIAL_BUDGETS = [
+      { category: 'Food & Dining', allocated: 250, spent: 175, color: '#10B981' },
+      { category: 'Books & Supplies', allocated: 150, spent: 116.50, color: '#3B82F6' },
+      { category: 'Entertainment', allocated: 60, spent: 42.00, color: '#8B5CF6' },
+      { category: 'Transport', allocated: 50, spent: 25.00, color: '#F59E0B' },
+      { category: 'Personal', allocated: 80, spent: 35.00, color: '#F43F5E' }
+    ];
+
+    const INITIAL_SAVINGS_GOALS = [
+      { id: 1, title: 'Spring Break Trip', target: 500, saved: 320, icon: '✈️' },
+      { id: 2, title: 'Emergency Fund', target: 1000, saved: 650, icon: '🛡️' },
+      { id: 3, title: 'New Student Laptop', target: 900, saved: 450, icon: '💻' }
+    ];
+
+    const STUDENT_DEALS = [
+      { title: 'Spotify + Hulu Student Bundle', discount: '50% OFF', category: 'Entertainment', provider: 'Spotify' },
+      { title: 'GitHub Student Developer Pack', discount: 'FREE Tools', category: 'Software', provider: 'GitHub' },
+      { title: 'Campus Transit Pass Discount', discount: '30% OFF', category: 'Transport', provider: 'Metro' },
+      { title: 'Adobe Creative Cloud Student', discount: '60% OFF', category: 'Software', provider: 'Adobe' }
+    ];
+
+    const MONTHLY_TREND_DATA = [
+      { month: 'May', income: 450, expense: 320 },
+      { month: 'Jun', income: 520, expense: 380 },
+      { month: 'Jul', income: 480, expense: 290 },
+      { month: 'Aug', income: 600, expense: 410 },
+      { month: 'Sep', income: 550, expense: 367.99 }
+    ];
+
+    // Reactive State Store
+    const state = {
+      user: JSON.parse(localStorage.getItem('student_user')) || null,
+      authMode: 'login', // 'login' | 'register'
+      authError: '',
+      email: '',
+      password: '',
+      name: '',
+      university: 'State University',
+      monthlyAllowance: '600',
+      showPassword: false,
+      darkMode: false,
+      activeTab: 'dashboard', // 'dashboard', 'analytics', 'transactions', 'budgets', 'goals', 'discounts'
+      transactions: [...INITIAL_TRANSACTIONS],
+      budgets: [...INITIAL_BUDGETS],
+      goals: [...INITIAL_SAVINGS_GOALS],
+      chartType: 'bar', // 'bar' | 'line'
+      isAddModalOpen: false,
+      isQrModalOpen: false,
+      qrMode: 'scan', // 'scan' | 'mycode'
+      qrRecipient: 'Campus Dining Hall',
+      qrPayAmount: '',
+      qrPayNote: '',
+      isScanning: false,
+      qrSuccess: false,
+      myQrRequestAmount: '',
+      hoveredCategoryIdx: null,
+      activeTrendPoint: null
+    };
+
+    function showNotification(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.innerText = msg;
+      toast.classList.remove('hidden');
+      toast.classList.add('flex');
+      
+      setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('flex');
+      }, 3000);
+    }
+
+    function toggleDarkMode() {
+      state.darkMode = !state.darkMode;
+      if (state.darkMode) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('bg-slate-900', 'text-slate-100');
+        document.body.classList.remove('bg-slate-50', 'text-slate-800');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('bg-slate-900', 'text-slate-100');
+        document.body.classList.add('bg-slate-50', 'text-slate-800');
+      }
+      render();
+    }
+
+    function renderTrendingChart(data, isDark, chartType) {
+      const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense])) * 1.15 || 700;
+      const svgHeight = 180;
+      const svgWidth = 500;
+      const paddingX = 40;
+      const paddingY = 25;
+
+      const chartInnerWidth = svgWidth - paddingX * 2;
+      const chartInnerHeight = svgHeight - paddingY * 2;
+
+      const points = data.map((d, index) => {
+        const x = paddingX + (index / (data.length - 1)) * chartInnerWidth;
+        const yIncome = svgHeight - paddingY - (d.income / maxVal) * chartInnerHeight;
+        const yExpense = svgHeight - paddingY - (d.expense / maxVal) * chartInnerHeight;
+        return { x, yIncome, yExpense, ...d };
+      });
+
+      let gridLines = [0, 0.33, 0.66, 1].map((ratio) => {
+        const y = paddingY + ratio * chartInnerHeight;
+        const val = Math.round(maxVal * (1 - ratio));
+        return `
+          <g>
+            <line x1="${paddingX}" y1="${y}" x2="${svgWidth - paddingX}" y2="${y}" stroke="${isDark ? '#334155' : '#E2E8F0'}" stroke-dasharray="4 4" />
+            <text x="${paddingX - 8}" y="${y + 4}" text-anchor="end" class="fill-slate-400 text-[9px] font-medium">$${val}</text>
+          </g>
+        `;
+      }).join('');
+
+      let chartContent = '';
+
+      if (chartType === 'bar') {
+        chartContent = data.map((d, index) => {
+          const groupWidth = chartInnerWidth / data.length;
+          const groupX = paddingX + index * groupWidth;
+          const barWidth = Math.min(18, groupWidth * 0.35);
+
+          const hIncome = (d.income / maxVal) * chartInnerHeight;
+          const yIncome = svgHeight - paddingY - hIncome;
+
+          const hExpense = (d.expense / maxVal) * chartInnerHeight;
+          const yExpense = svgHeight - paddingY - hExpense;
+
+          return `
+            <g class="cursor-pointer" onclick="setActivePoint(${index})">
+              <rect x="${groupX + groupWidth / 2 - barWidth - 2}" y="${yIncome}" width="${barWidth}" height="${hIncome}" rx="4" fill="#10B981" opacity="0.85" />
+              <rect x="${groupX + groupWidth / 2 + 2}" y="${yExpense}" width="${barWidth}" height="${hExpense}" rx="4" fill="#F43F5E" opacity="0.85" />
+              <text x="${groupX + groupWidth / 2}" y="${svgHeight - 6}" text-anchor="middle" class="text-[10px] font-bold fill-slate-400">${d.month}</text>
+            </g>
+          `;
+        }).join('');
+      } else {
+        // Line chart
+        const generatePath = (key) => points.reduce((acc, pt, i) => {
+          const y = key === 'income' ? pt.yIncome : pt.yExpense;
+          return i === 0 ? `M ${pt.x},${y}` : `${acc} L ${pt.x},${y}`;
+        }, '');
+
+        const generateAreaPath = (key) => {
+          const linePath = generatePath(key);
+          const lastX = points[points.length - 1].x;
+          const firstX = points[0].x;
+          const bottomY = svgHeight - paddingY;
+          return `${linePath} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`;
+        };
+
+        chartContent = `
+          <path d="${generateAreaPath('income')}" fill="url(#incomeGrad)" />
+          <path d="${generateAreaPath('expense')}" fill="url(#expenseGrad)" />
+          <path d="${generatePath('income')}" fill="none" stroke="#10B981" stroke-width="3" />
+          <path d="${generatePath('expense')}" fill="none" stroke="#F43F5E" stroke-width="3" />
+          ${points.map((pt, index) => `
+            <g class="cursor-pointer" onclick="setActivePoint(${index})">
+              <circle cx="${pt.x}" cy="${pt.yIncome}" r="4" fill="#10B981" stroke="#FFFFFF" stroke-width="2" />
+              <circle cx="${pt.x}" cy="${pt.yExpense}" r="4" fill="#F43F5E" stroke="#FFFFFF" stroke-width="2" />
+              <text x="${pt.x}" y="${svgHeight - 6}" text-anchor="middle" class="text-[10px] font-bold fill-slate-400">${pt.month}</text>
+            </g>
+          `).join('')}
+        `;
+      }
+
+      return `
+        <div class="relative w-full overflow-x-auto no-scrollbar">
+          ${state.activeTrendPoint !== null ? `
+            <div class="absolute top-2 right-4 bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 px-3 py-1.5 rounded-xl text-xs shadow-lg flex items-center gap-3 z-10">
+              <span class="font-bold">${data[state.activeTrendPoint].month}</span>
+              <span class="text-emerald-400 dark:text-emerald-600 font-semibold">In: $${data[state.activeTrendPoint].income}</span>
+              <span class="text-rose-400 dark:text-rose-600 font-semibold">Out: $${data[state.activeTrendPoint].expense}</span>
+            </div>
+          ` : ''}
+          <svg class="w-full h-48 min-w-[380px]" viewBox="0 0 ${svgWidth} ${svgHeight}">
+            <defs>
+              <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.3" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </linearGradient>
+              <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#F43F5E" stop-opacity="0.3" />
+                <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.0" />
+              </linearGradient>
+            </defs>
+            ${gridLines}
+            ${chartContent}
+          </svg>
+        </div>
+      `;
+    }
+
+    function renderCategoryPieChart(data, isDark) {
+      const total = data.reduce((acc, curr) => acc + curr.spent, 0);
+      const radius = 40;
+      const circumference = 2 * Math.PI * radius;
+      let accumulatedOffset = 0;
+
+      const slices = data.map((item, idx) => {
+        const percentage = total > 0 ? item.spent / total : 0;
+        const strokeDasharray = `${percentage * circumference} ${circumference}`;
+        const strokeDashoffset = -accumulatedOffset;
+        accumulatedOffset += percentage * circumference;
+        const isHovered = state.hoveredCategoryIdx === idx;
+
+        return `
+          <circle
+            cx="50"
+            cy="50"
+            r="${radius}"
+            fill="transparent"
+            stroke="${item.color}"
+            stroke-width="${isHovered ? 14 : 10}"
+            stroke-dasharray="${strokeDasharray}"
+            stroke-dashoffset="${strokeDashoffset}"
+            class="transition-all duration-300 cursor-pointer"
+            onmouseenter="setHoveredCategory(${idx})"
+            onmouseleave="setHoveredCategory(null)"
+          />
+        `;
+      }).join('');
+
+      const listItems = data.map((item, idx) => {
+        const pct = total > 0 ? ((item.spent / total) * 100).toFixed(1) : 0;
+        const isHovered = state.hoveredCategoryIdx === idx;
+        return `
+          <div
+            onmouseenter="setHoveredCategory(${idx})"
+            onmouseleave="setHoveredCategory(null)"
+            class="p-2 rounded-xl flex items-center justify-between transition cursor-pointer text-xs ${
+              isHovered 
+                ? isDark ? 'bg-slate-700/80 shadow-md' : 'bg-slate-100 shadow-sm' 
+                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            }"
+          >
+            <div class="flex items-center gap-2.5">
+              <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${item.color}"></span>
+              <span class="font-semibold text-slate-700 dark:text-slate-300">${item.category}</span>
+            </div>
+            <div class="text-right">
+              <span class="font-bold text-slate-800 dark:text-slate-100">$${item.spent.toFixed(2)}</span>
+              <span class="text-[10px] text-slate-400 block">${pct}%</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const activeCategory = state.hoveredCategoryIdx !== null ? data[state.hoveredCategoryIdx] : null;
+
+      return `
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div class="relative w-48 h-48 flex-shrink-0 flex items-center justify-center">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              ${slices}
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-2">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                ${activeCategory ? activeCategory.category : 'Total Spent'}
+              </span>
+              <span class="text-base font-extrabold tracking-tight">
+                $${activeCategory ? activeCategory.spent.toFixed(2) : total.toFixed(2)}
+              </span>
+              ${activeCategory && total > 0 ? `
+                <span class="text-[10px] font-semibold text-indigo-500">
+                  ${((activeCategory.spent / total) * 100).toFixed(1)}% of total
+                </span>
+              ` : ''}
+            </div>
+          </div>
+          <div class="w-full space-y-2.5">${listItems}</div>
+        </div>
+      `;
+    }
+
+    function setHoveredCategory(idx) {
+      state.hoveredCategoryIdx = idx;
+      render();
+    }
+
+    function setActivePoint(idx) {
+      state.activeTrendPoint = state.activeTrendPoint === idx ? null : idx;
+      render();
+    }
+
+    function handleDemoLogin() {
+      const demoUser = {
+        name: 'Alex Morgan',
+        email: 'alex.m@university.edu',
+        university: 'State University',
+        allowance: '600',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
+      state.user = demoUser;
+      localStorage.setItem('student_user', JSON.stringify(demoUser));
+      showNotification('Logged in as Alex Morgan (Demo)');
+      render();
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      if (!state.email || !state.password) {
+        state.authError = 'Please fill in all credentials.';
+        render();
+        return;
+      }
+      const userData = {
+        name: state.email.split('@')[0].toUpperCase(),
+        email: state.email,
+        university: state.university,
+        allowance: state.monthlyAllowance,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
+      state.user = userData;
+      localStorage.setItem('student_user', JSON.stringify(userData));
+      showNotification('Welcome back!');
+      render();
+    }
+
+    function handleRegister(e) {
+      e.preventDefault();
+      if (!state.name || !state.email || !state.password) {
+        state.authError = 'Please fill in all fields.';
+        render();
+        return;
+      }
+      const userData = {
+        name: state.name,
+        email: state.email,
+        university: state.university,
+        allowance: state.monthlyAllowance,
+        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80'
+      };
+      state.user = userData;
+      localStorage.setItem('student_user', JSON.stringify(userData));
+      showNotification('Account created successfully!');
+      render();
+    }
+
+    function handleLogout() {
+      state.user = null;
+      state.email = '';
+      state.password = '';
+      state.authMode = 'login';
+      localStorage.removeItem('student_user');
+      showNotification('Successfully logged out.');
+      render();
+    }
+
+    function handleAddTransaction(e) {
+      e.preventDefault();
+      const title = document.getElementById('new-title').value;
+      const amount = parseFloat(document.getElementById('new-amount').value);
+      const type = document.getElementById('new-type').value;
+      const category = document.getElementById('new-category').value;
+
+      if (!title || isNaN(amount) || amount <= 0) {
+        showNotification('Please enter a valid title and positive amount.');
+        return;
+      }
+
+      const item = {
+        id: Date.now(),
+        title,
+        amount,
+        type,
+        category,
+        date: new Date().toISOString().split('T')[0]
+      };
+
+      state.transactions.unshift(item);
+
+      if (type === 'expense') {
+        state.budgets = state.budgets.map(b => {
+          if (b.category === category) {
+            return { ...b, spent: b.spent + amount };
+          }
+          return b;
+        });
+      }
+
+      state.isAddModalOpen = false;
+      showNotification('Transaction added successfully!');
+      render();
+    }
+
+    function handleDeleteTransaction(id) {
+      state.transactions = state.transactions.filter(t => t.id !== id);
+      showNotification('Transaction removed.');
+      render();
+    }
+
+    function handleSimulateScan(recipient, defaultAmt) {
+      state.isScanning = true;
+      render();
+      setTimeout(() => {
+        state.isScanning = false;
+        state.qrRecipient = recipient;
+        state.qrPayAmount = defaultAmt;
+        showNotification(`QR Code detected: ${recipient}`);
+        render();
+      }, 1000);
+    }
+
+    function handleQrPayment(e) {
+      e.preventDefault();
+      const amt = parseFloat(state.qrPayAmount);
+      if (!amt || isNaN(amt) || amt <= 0) {
+        showNotification('Please enter a valid payment amount.');
+        return;
+      }
+
+      const item = {
+        id: Date.now(),
+        title: `QR Pay: ${state.qrRecipient}`,
+        amount: amt,
+        type: 'expense',
+        category: 'Food & Dining',
+        date: new Date().toISOString().split('T')[0]
+      };
+
+      state.transactions.unshift(item);
+
+      state.budgets = state.budgets.map(b => {
+        if (b.category === 'Food & Dining') {
+          return { ...b, spent: b.spent + amt };
+        }
+        return b;
+      });
+
+      state.qrSuccess = true;
+      render();
+
+      setTimeout(() => {
+        state.qrSuccess = false;
+        state.isQrModalOpen = false;
+        state.qrPayAmount = '';
+        state.qrPayNote = '';
+        showNotification(`Successfully paid $${amt.toFixed(2)} to ${state.qrRecipient}!`);
+        render();
+      }, 1600);
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      const modalContainer = document.getElementById('modal-container');
+
+      // Unauthenticated view
+      if (!state.user) {
+        app.innerHTML = `
+          <header class="px-6 py-4 flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+              </div>
+              <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                StudentMoney
+              </span>
+            </div>
+            <button
+              onclick="toggleDarkMode()"
+              class="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              <i data-lucide="${state.darkMode ? 'sun' : 'moon'}" class="w-4 h-4 ${state.darkMode ? 'text-amber-400' : ''}"></i>
+              <span class="hidden sm:inline">${state.darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+          </header>
+
+          <div class="flex-1 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 p-4 sm:p-6 lg:p-8 items-center gap-8">
+            <div class="lg:col-span-6 space-y-6 hidden lg:flex flex-col justify-center pr-4">
+              <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 w-fit">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Built Exclusively for College Students
+              </div>
+
+              <h1 class="text-4xl xl:text-5xl font-extrabold tracking-tight leading-tight">
+                Master Your Student Budget with <span class="bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-600 bg-clip-text text-transparent">Confidence.</span>
+              </h1>
+
+              <p class="text-slate-600 dark:text-slate-300 text-sm xl:text-base leading-relaxed">
+                Track campus meal plans, textbooks, part-time stipends, and unlock interactive trending charts & student perks—all in one smart dashboard.
+              </p>
+
+              <div class="grid grid-cols-2 gap-4 pt-2">
+                <div class="p-4 rounded-2xl border ${state.darkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-2">
+                    <i data-lucide="piggy-bank" class="w-4 h-4"></i>
+                  </div>
+                  <h3 class="font-bold text-xs">Smart Allowance Guard</h3>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Stay on budget without missing out on student life.</p>
+                </div>
+
+                <div class="p-4 rounded-2xl border ${state.darkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-2">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                  </div>
+                  <h3 class="font-bold text-xs">Visual Analytics</h3>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Interactive bar graphs & donut charts for instant insights.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-6 w-full max-w-md mx-auto">
+              <div class="rounded-3xl p-6 sm:p-8 shadow-2xl border transition-all ${state.darkMode ? 'bg-slate-800/90 border-slate-700' : 'bg-white border-slate-100'}">
+                <div class="flex bg-slate-100 dark:bg-slate-700/50 p-1 rounded-2xl mb-6">
+                  <button
+                    onclick="state.authMode = 'login'; state.authError = ''; render();"
+                    class="flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${state.authMode === 'login' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500'}"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onclick="state.authMode = 'register'; state.authError = ''; render();"
+                    class="flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${state.authMode === 'register' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500'}"
+                  >
+                    Create Account
+                  </button>
+                </div>
+
+                ${state.authError ? `
+                  <div class="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium rounded-xl flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                    <span>${state.authError}</span>
+                  </div>
+                ` : ''}
+
+                ${state.authMode === 'login' ? `
+                  <div class="space-y-2 mb-5">
+                    <button
+                      type="button"
+                      onclick="handleDemoLogin()"
+                      class="w-full py-2.5 px-4 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${state.darkMode ? 'border-slate-700 hover:bg-slate-700/50 text-slate-200' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}"
+                    >
+                      <i data-lucide="building-2" class="w-4 h-4 text-indigo-500"></i>
+                      Sign in with Campus Portal (.edu SSO)
+                    </button>
+                    <div class="relative my-4 text-center">
+                      <hr class="${state.darkMode ? 'border-slate-700' : 'border-slate-200'}" />
+                      <span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-3 text-[10px] text-slate-400 uppercase tracking-widest ${state.darkMode ? 'bg-slate-800' : 'bg-white'}">
+                        or email login
+                      </span>
+                    </div>
+                  </div>
+
+                  <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Student Email / ID</label>
+                      <div class="relative">
+                        <i data-lucide="mail" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input
+                          type="email"
+                          required
+                          placeholder="student@university.edu"
+                          value="${state.email}"
+                          oninput="state.email = this.value"
+                          class="w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs outline-none transition ${state.darkMode ? 'bg-slate-900 border-slate-700 focus:border-indigo-500' : 'bg-slate-50 border-slate-200 focus:border-indigo-600'}"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Password</label>
+                      <div class="relative">
+                        <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input
+                          type="${state.showPassword ? 'text' : 'password'}"
+                          required
+                          placeholder="••••••••"
+                          value="${state.password}"
+                          oninput="state.password = this.value"
+                          class="w-full pl-10 pr-10 py-2.5 rounded-xl border text-xs outline-none transition ${state.darkMode ? 'bg-slate-900 border-slate-700 focus:border-indigo-500' : 'bg-slate-50 border-slate-200 focus:border-indigo-600'}"
+                        />
+                        <button
+                          type="button"
+                          onclick="state.showPassword = !state.showPassword; render();"
+                          class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                        >
+                          <i data-lucide="${state.showPassword ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all text-xs flex items-center justify-center gap-1.5"
+                    >
+                      Sign In to Dashboard <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                  </form>
+                ` : `
+                  <form onsubmit="handleRegister(event)" class="space-y-3.5">
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Alex Morgan"
+                        value="${state.name}"
+                        oninput="state.name = this.value"
+                        class="w-full px-3 py-2 rounded-xl border text-xs outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Student Email (.edu)</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="alex.m@university.edu"
+                        value="${state.email}"
+                        oninput="state.email = this.value"
+                        class="w-full px-3 py-2 rounded-xl border text-xs outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Create Password</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value="${state.password}"
+                        oninput="state.password = this.value"
+                        class="w-full px-3 py-2 rounded-xl border text-xs outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs"
+                    >
+                      Create Account & Start Savings
+                    </button>
+                  </form>
+                `}
+
+                <div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+                  <button
+                    onclick="handleDemoLogin()"
+                    type="button"
+                    class="w-full py-2.5 border-2 border-dashed border-indigo-500/40 hover:border-indigo-600 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <i data-lucide="sparkles" class="w-4 h-4 text-indigo-500"></i> Instant Demo Mode
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        lucide.createIcons();
+        modalContainer.innerHTML = '';
+        return;
+      }
+
+      // Calculated Financial Totals
+      const totalIncome = state.transactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => acc + t.amount, 0);
+
+      const totalExpense = state.transactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => acc + t.amount, 0);
+
+      const netBalance = totalIncome - totalExpense;
+
+      const categoryMap = {};
+      state.budgets.forEach(b => {
+        categoryMap[b.category] = { spent: 0, color: b.color };
+      });
+      state.transactions.filter(t => t.type === 'expense').forEach(t => {
+        if (categoryMap[t.category]) {
+          categoryMap[t.category].spent += t.amount;
+        } else {
+          categoryMap[t.category] = { spent: t.amount, color: '#94A3B8' };
+        }
+      });
+      const categorySpendingData = Object.keys(categoryMap).map(cat => ({
+        category: cat,
+        spent: categoryMap[cat].spent,
+        color: categoryMap[cat].color
+      }));
+
+      // Authenticated Dashboard Layout
+      app.innerHTML = `
+        <header class="sticky top-0 z-40 border-b backdrop-blur-md ${state.darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'}">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="font-bold text-lg leading-none bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">StudentMoney</span>
+                <span class="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold">${state.user.university}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-3">
+              <button
+                onclick="toggleDarkMode()"
+                class="p-2 rounded-xl text-slate-500 hover:text-indigo-600 transition"
+                title="Toggle Theme"
+              >
+                <i data-lucide="${state.darkMode ? 'sun' : 'moon'}" class="w-5 h-5 ${state.darkMode ? 'text-amber-400' : ''}"></i>
+              </button>
+
+              <button
+                onclick="state.isQrModalOpen = true; state.qrMode = 'scan'; render();"
+                class="flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-3 py-2 rounded-xl font-medium text-xs shadow-md transition transform active:scale-95"
+              >
+                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Pay / QR</span>
+              </button>
+
+              <button
+                onclick="state.isAddModalOpen = true; render();"
+                class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-medium text-xs shadow-md"
+              >
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Add Transaction</span>
+              </button>
+
+              <div class="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+                <img src="${state.user.avatar}" alt="${state.user.name}" class="w-9 h-9 rounded-full bg-slate-200 border border-indigo-400 object-cover" />
+                <div class="hidden md:block text-left">
+                  <p class="text-xs font-semibold leading-tight">${state.user.name}</p>
+                  <p class="text-[10px] text-slate-400 leading-tight">${state.user.email}</p>
+                </div>
+                <button onclick="handleLogout()" class="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition">
+                  <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+          <!-- Navigation Tabs -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar border-b border-slate-200 dark:border-slate-800 mb-6">
+            ${[
+              { id: 'dashboard', label: 'Overview', icon: 'wallet' },
+              { id: 'analytics', label: 'Analytics', icon: 'line-chart' },
+              { id: 'transactions', label: 'Transactions', icon: 'credit-card' },
+              { id: 'budgets', label: 'Budgets', icon: 'pie-chart' },
+              { id: 'goals', label: 'Savings Goals', icon: 'target' },
+              { id: 'discounts', label: 'Perks & Deals', icon: 'tag' },
+            ].map(tab => `
+              <button
+                onclick="state.activeTab = '${tab.id}'; render();"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-xs whitespace-nowrap transition-all ${
+                  state.activeTab === tab.id 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' 
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }"
+              >
+                <i data-lucide="${tab.icon}" class="w-4 h-4"></i>
+                ${tab.label}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- TAB CONTENT RENDERING -->
+          ${state.activeTab === 'dashboard' ? `
+            <div class="space-y-6">
+              <!-- Quick Action Banner -->
+              <div class="p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r ${state.darkMode ? 'from-indigo-950/80 via-slate-800 to-slate-800 border-indigo-800/50' : 'from-indigo-50 via-white to-purple-50 border-indigo-100 shadow-sm'}">
+                <div class="flex items-center gap-3.5">
+                  <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-lg shrink-0">
+                    <i data-lucide="qr-code" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-sm">Instant Campus QR Pay</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Scan merchant QR at dining halls, bookstores, or split bills with friends.</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onclick="state.isQrModalOpen = true; state.qrMode = 'scan'; render();"
+                    class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1.5"
+                  >
+                    <i data-lucide="scan" class="w-4 h-4"></i> Scan & Pay
+                  </button>
+                  <button
+                    onclick="state.isQrModalOpen = true; state.qrMode = 'mycode'; render();"
+                    class="flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl border transition flex items-center justify-center gap-1.5 ${state.darkMode ? 'border-slate-700 hover:bg-slate-700 text-slate-200' : 'border-slate-200 hover:bg-slate-100 text-slate-700'}"
+                  >
+                    <i data-lucide="qr-code" class="w-4 h-4 text-indigo-500"></i> My QR Code
+                  </button>
+                </div>
+              </div>
+
+              <!-- Summary Cards Grid -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="p-5 rounded-2xl border ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400">Total Balance</span>
+                    <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-500"><i data-lucide="wallet" class="w-4 h-4"></i></div>
+                  </div>
+                  <div class="text-2xl font-extrabold">$${netBalance.toFixed(2)}</div>
+                  <div class="mt-2 text-xs text-emerald-500 font-semibold flex items-center gap-1">
+                    <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +12.4% from last month
+                  </div>
+                </div>
+
+                <div class="p-5 rounded-2xl border ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400">Monthly Income</span>
+                    <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><i data-lucide="trending-up" class="w-4 h-4"></i></div>
+                  </div>
+                  <div class="text-2xl font-extrabold text-emerald-500">$${totalIncome.toFixed(2)}</div>
+                  <div class="mt-2 text-xs text-slate-400">Includes stipends & allowance</div>
+                </div>
+
+                <div class="p-5 rounded-2xl border ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400">Total Expenses</span>
+                    <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500"><i data-lucide="trending-down" class="w-4 h-4"></i></div>
+                  </div>
+                  <div class="text-2xl font-extrabold text-rose-500">$${totalExpense.toFixed(2)}</div>
+                  <div class="mt-2 text-xs text-slate-400">Across 5 spending categories</div>
+                </div>
+
+                <div class="p-5 rounded-2xl border ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400">Monthly Allowance</span>
+                    <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500"><i data-lucide="piggy-bank" class="w-4 h-4"></i></div>
+                  </div>
+                  <div class="text-2xl font-extrabold">$${state.user.allowance || state.monthlyAllowance}</div>
+                  <div class="mt-2 text-xs text-slate-400">Target allowance per month</div>
+                </div>
+              </div>
+
+              <!-- Quick Chart Preview Grid -->
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-7 p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                  <div class="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 class="font-bold text-base flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-500"></i>
+                        Income vs. Expense Trend
+                      </h2>
+                      <p class="text-[11px] text-slate-400">Monthly breakdown of student cashflow</p>
+                    </div>
+
+                    <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+                      <button
+                        onclick="state.chartType = 'bar'; render();"
+                        class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition ${state.chartType === 'bar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400'}"
+                      >
+                        Bar Graph
+                      </button>
+                      <button
+                        onclick="state.chartType = 'line'; render();"
+                        class="px-2.5 py-1 text-[11px] font-bold rounded-lg transition ${state.chartType === 'line' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400'}"
+                      >
+                        Line Graph
+                      </button>
+                    </div>
+                  </div>
+                  ${renderTrendingChart(MONTHLY_TREND_DATA, state.darkMode, state.chartType)}
+                </div>
+
+                <div class="lg:col-span-5 p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                  <div class="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 class="font-bold text-base flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-5 h-5 text-indigo-500"></i>
+                        Category Breakdown
+                      </h2>
+                      <p class="text-[11px] text-slate-400">Interactive spending distribution</p>
+                    </div>
+                  </div>
+                  ${renderCategoryPieChart(categorySpendingData, state.darkMode)}
+                </div>
+              </div>
+
+              <!-- Dashboard Visuals: Recent Activity -->
+              <div class="p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="font-bold text-base flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5 text-indigo-500"></i>
+                    Recent Activity
+                  </h2>
+                  <button onclick="state.activeTab = 'transactions'; render();" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+                    View All (${state.transactions.length})
+                  </button>
+                </div>
+
+                <div class="space-y-3">
+                  ${state.transactions.slice(0, 5).map(t => `
+                    <div class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                          <i data-lucide="${t.type === 'income' ? 'arrow-down-right' : 'arrow-up-right'}" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                          <p class="text-xs font-semibold">${t.title}</p>
+                          <p class="text-[10px] text-slate-400">${t.category} • ${t.date}</p>
+                        </div>
+                      </div>
+                      <span class="text-xs font-bold ${t.type === 'income' ? 'text-emerald-500' : 'text-slate-800 dark:text-slate-100'}">
+                        ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
+                      </span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${state.activeTab === 'analytics' ? `
+            <div class="space-y-6">
+              <div class="p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div>
+                    <h2 class="text-lg font-bold">Comprehensive Student Financial Analytics</h2>
+                    <p class="text-xs text-slate-400">Track long-term income, expenses, and category distributions</p>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400">Graph Style:</span>
+                    <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+                      <button
+                        onclick="state.chartType = 'bar'; render();"
+                        class="px-3 py-1.5 text-xs font-bold rounded-lg transition ${state.chartType === 'bar' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'}"
+                      >
+                        Bar Graph
+                      </button>
+                      <button
+                        onclick="state.chartType = 'line'; render();"
+                        class="px-3 py-1.5 text-xs font-bold rounded-lg transition ${state.chartType === 'line' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'}"
+                      >
+                        Line Curve
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="p-4 rounded-xl border border-slate-100 dark:border-slate-700/50 mb-6">
+                  <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3">5-Month Cashflow History</h3>
+                  ${renderTrendingChart(MONTHLY_TREND_DATA, state.darkMode, state.chartType)}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3">Spending Share by Category (Pie Chart)</h3>
+                    ${renderCategoryPieChart(categorySpendingData, state.darkMode)}
+                  </div>
+
+                  <div class="p-4 rounded-xl border border-slate-100 dark:border-slate-700/50 space-y-3">
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3">Key Metrics</h3>
+                    <div class="flex justify-between items-center text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+                      <span class="text-slate-500">Average Monthly Expense</span>
+                      <span class="font-bold text-rose-500">$353.60</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+                      <span class="text-slate-500">Top Spending Category</span>
+                      <span class="font-bold text-indigo-500">Food & Dining (47.5%)</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+                      <span class="text-slate-500">Savings Rate</span>
+                      <span class="font-bold text-emerald-500">33.1%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${state.activeTab === 'transactions' ? `
+            <div class="p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h2 class="font-bold text-lg">All Transactions</h2>
+                <button
+                  onclick="state.isAddModalOpen = true; render();"
+                  class="flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow"
+                >
+                  <i data-lucide="plus" class="w-4 h-4"></i> Add New Item
+                </button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead>
+                    <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-400 uppercase tracking-wider">
+                      <th class="pb-3 font-semibold">Title</th>
+                      <th class="pb-3 font-semibold">Category</th>
+                      <th class="pb-3 font-semibold">Date</th>
+                      <th class="pb-3 font-semibold">Amount</th>
+                      <th class="pb-3 font-semibold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    ${state.transactions.map(t => `
+                      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+                        <td class="py-3 font-semibold">${t.title}</td>
+                        <td class="py-3 text-slate-500">${t.category}</td>
+                        <td class="py-3 text-slate-400">${t.date}</td>
+                        <td class="py-3 font-bold ${t.type === 'income' ? 'text-emerald-500' : 'text-slate-800 dark:text-slate-200'}">
+                          ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
+                        </td>
+                        <td class="py-3 text-right">
+                          <button
+                            onclick="handleDeleteTransaction(${t.id})"
+                            class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition"
+                            title="Delete"
+                          >
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : ''}
+
+          ${state.activeTab === 'budgets' ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              ${state.budgets.map((b) => {
+                const pct = Math.round((b.spent / b.allocated) * 100);
+                return `
+                  <div class="p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                    <div class="flex justify-between items-center mb-2">
+                      <h3 class="font-bold text-sm">${b.category}</h3>
+                      <span class="text-xs px-2 py-0.5 rounded-full font-semibold ${pct > 90 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}">
+                        ${pct}% Used
+                      </span>
+                    </div>
+                    <div class="text-2xl font-extrabold mb-3">
+                      $${b.spent.toFixed(2)} <span class="text-xs font-normal text-slate-400">/ $${b.allocated} allocated</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div class="h-full transition-all duration-500" style="width: ${Math.min(pct, 100)}%; background-color: ${b.color}"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          ${state.activeTab === 'goals' ? `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              ${state.goals.map(goal => {
+                const pct = Math.round((goal.saved / goal.target) * 100);
+                return `
+                  <div class="p-6 rounded-2xl border shadow-sm ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                    <div class="text-3xl mb-2">${goal.icon}</div>
+                    <h3 class="font-bold text-base mb-1">${goal.title}</h3>
+                    <p class="text-xs text-slate-400 mb-4">$${goal.saved} saved of $${goal.target} goal</p>
+                    <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
+                      <div class="h-full bg-indigo-600" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-slate-500">
+                      <span>Progress</span>
+                      <span class="font-bold text-indigo-600 dark:text-indigo-400">${pct}%</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          ${state.activeTab === 'discounts' ? `
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              ${STUDENT_DEALS.map((deal) => `
+                <div class="p-5 rounded-2xl border shadow-sm relative overflow-hidden ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}">
+                  <span class="bg-indigo-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider mb-3 inline-block">
+                    ${deal.discount}
+                  </span>
+                  <h3 class="font-bold text-sm mb-1">${deal.title}</h3>
+                  <p class="text-xs text-slate-400 mb-4">Category: ${deal.category}</p>
+                  <button
+                    onclick="showNotification('Copied discount code for ${deal.provider}!')"
+                    class="w-full py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1"
+                  >
+                    Claim Perks <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </main>
+      `;
+
+      // Render Modals
+      renderModals();
+      lucide.createIcons();
+    }
+
+    function renderModals() {
+      const modalContainer = document.getElementById('modal-container');
+      let html = '';
+
+      if (state.isAddModalOpen) {
+        html += `
+          <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="w-full max-w-md p-6 rounded-2xl shadow-2xl border ${state.darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-base">Add New Transaction</h3>
+                <button onclick="state.isAddModalOpen = false; render();" class="text-slate-400 hover:text-slate-600">
+                  <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+              </div>
+
+              <form onsubmit="handleAddTransaction(event)" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">Title</label>
+                  <input
+                    id="new-title"
+                    type="text"
+                    required
+                    placeholder="e.g. Groceries at Walmart"
+                    class="w-full px-3 py-2 rounded-xl border text-sm outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                  />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Amount ($)</label>
+                    <input
+                      id="new-amount"
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="25.00"
+                      class="w-full px-3 py-2 rounded-xl border text-sm outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Type</label>
+                    <select
+                      id="new-type"
+                      class="w-full px-3 py-2 rounded-xl border text-sm outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">Category</label>
+                  <select
+                    id="new-category"
+                    class="w-full px-3 py-2 rounded-xl border text-sm outline-none ${state.darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                  >
+                    <option value="Food & Dining">Food & Dining</option>
+                    <option value="Books & Supplies">Books & Supplies</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Income">Income / Allowance</option>
+                  </select>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onclick="state.isAddModalOpen = false; render();"
+                    class="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-4 py-2 text-xs font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow"
+                  >
+                    Save Entry
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.isQrModalOpen) {
+        html += `
+          <div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+            <div class="w-full max-w-lg rounded-3xl shadow-2xl border overflow-hidden transition-all ${state.darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}">
+              <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <i data-lucide="qr-code" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-base leading-none">Campus QR Payment</h3>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Fast, zero-contact student payments</p>
+                  </div>
+                </div>
+                <button 
+                  onclick="state.isQrModalOpen = false; render();"
+                  class="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+              </div>
+
+              <div class="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 mx-5 mt-4 rounded-2xl">
+                <button
+                  onclick="state.qrMode = 'scan'; render();"
+                  class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${state.qrMode === 'scan' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}"
+                >
+                  <i data-lucide="scan" class="w-4 h-4"></i> Scan & Pay
+                </button>
+                <button
+                  onclick="state.qrMode = 'mycode'; render();"
+                  class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${state.qrMode === 'mycode' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}"
+                >
+                  <i data-lucide="qr-code" class="w-4 h-4"></i> My Student QR
+                </button>
+              </div>
+
+              <div class="p-5 space-y-4">
+                ${state.qrSuccess ? `
+                  <div class="py-12 flex flex-col items-center justify-center text-center space-y-3">
+                    <div class="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center animate-bounce shadow-xl shadow-emerald-500/30">
+                      <i data-lucide="check" class="w-8 h-8 stroke-[3]"></i>
+                    </div>
+                    <h4 class="text-xl font-extrabold text-emerald-500">Payment Complete!</h4>
+                    <p class="text-xs text-slate-400 max-w-xs">
+                      Transferred <span class="font-bold text-slate-800 dark:text-slate-100">$${parseFloat(state.qrPayAmount || 0).toFixed(2)}</span> to <span class="font-semibold text-indigo-500">${state.qrRecipient}</span>
+                    </p>
+                  </div>
+                ` : `
+                  ${state.qrMode === 'scan' ? `
+                    <div class="space-y-4">
+                      <div class="relative w-full h-44 bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center group">
+                        <div class="absolute inset-0 bg-gradient-to-b from-indigo-950/40 via-transparent to-slate-950/80 pointer-events-none"></div>
+                        <div class="w-32 h-32 relative border-2 border-indigo-400/30 rounded-2xl flex items-center justify-center">
+                          <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-500 rounded-tl-lg"></div>
+                          <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-500 rounded-tr-lg"></div>
+                          <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-500 rounded-bl-lg"></div>
+                          <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-500 rounded-br-lg"></div>
+                          <div class="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-pulse"></div>
+                        </div>
+
+                        ${state.isScanning ? `
+                          <div class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-xs text-indigo-400 font-semibold gap-2">
+                            <i data-lucide="refresh-cw" class="w-6 h-6 animate-spin text-indigo-500"></i>
+                            Decoding QR Code...
+                          </div>
+                        ` : `
+                          <div class="absolute bottom-3 left-1/2 -translate-x-1/2 text-[11px] font-medium text-slate-400 bg-slate-900/80 px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5 border border-slate-800">
+                            <i data-lucide="camera" class="w-3.5 h-3.5 text-indigo-400"></i> Point camera at vendor or friend's QR
+                          </div>
+                        `}
+                      </div>
+
+                      <div>
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                          Quick Test Scan Presets
+                        </span>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          ${[
+                            { name: 'Campus Dining', amt: '14.50' },
+                            { name: 'University Bookstore', amt: '45.00' },
+                            { name: 'Library Cafe', amt: '6.25' },
+                            { name: 'Dorm Laundry', amt: '5.00' },
+                            { name: 'Sam (Roommate)', amt: '18.00' },
+                            { name: 'Campus Shuttle Pass', amt: '25.00' }
+                          ].map(preset => `
+                            <button
+                              type="button"
+                              onclick="handleSimulateScan('${preset.name}', '${preset.amt}')"
+                              class="p-2 rounded-xl border text-left text-xs transition ${
+                                state.qrRecipient === preset.name 
+                                  ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold' 
+                                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 text-slate-600 dark:text-slate-400'
+                              }"
+                            >
+                              <p class="truncate font-semibold">${preset.name}</p>
+                              <p class="text-[10px] text-slate-400">$${preset.amt}</p>
+                            </button>
+                          `).join('')}
+                        </div>
+                      </div>
+
+                      <form onsubmit="handleQrPayment(event)" class="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div class="grid grid-cols-2 gap-3">
+                          <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Paying To</label>
+                            <input
+                              type="text"
+                              required
+                              value="${state.qrRecipient}"
+                              oninput="state.qrRecipient = this.value"
+                              class="w-full px-3 py-2 rounded-xl border text-xs outline-none font-semibold ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                            />
+                          </div>
+
+                          <div>
+                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Amount ($)</label>
+                            <div class="relative">
+                              <i data-lucide="dollar-sign" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                              <input
+                                type="number"
+                                step="0.01"
+                                required
+                                placeholder="0.00"
+                                value="${state.qrPayAmount}"
+                                oninput="state.qrPayAmount = this.value"
+                                class="w-full pl-8 pr-3 py-2 rounded-xl border text-xs font-bold outline-none ${state.darkMode ? 'bg-slate-800 border-slate-700 focus:border-indigo-500' : 'bg-slate-50 border-slate-200 focus:border-indigo-600'}"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Optional Note / Reference</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Lunch split / Chemistry Lab Manual"
+                            value="${state.qrPayNote}"
+                            oninput="state.qrPayNote = this.value"
+                            class="w-full px-3 py-2 rounded-xl border text-xs outline-none ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          class="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/25 transition flex items-center justify-center gap-2"
+                        >
+                          <i data-lucide="send" class="w-4 h-4"></i> Confirm & Pay $${state.qrPayAmount || '0.00'}
+                        </button>
+                      </form>
+                    </div>
+                  ` : `
+                    <div class="space-y-4 text-center py-2">
+                      <div class="p-4 rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-inner max-w-xs mx-auto flex flex-col items-center space-y-3">
+                        <div class="flex items-center gap-2">
+                          <img src="${state.user.avatar}" alt="User" class="w-7 h-7 rounded-full border border-indigo-500" />
+                          <div class="text-left">
+                            <p class="font-bold text-xs">${state.user.name}</p>
+                            <p class="text-[9px] text-slate-500">@${state.user.name.toLowerCase().replace(/\s+/g, '')}.edu</p>
+                          </div>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 relative group cursor-pointer">
+                          <svg class="w-44 h-44" viewBox="0 0 100 100">
+                            <rect x="0" y="0" width="100" height="100" fill="#ffffff" rx="8" />
+                            <rect x="10" y="10" width="25" height="25" fill="#4F46E5" rx="4" />
+                            <rect x="14" y="14" width="17" height="17" fill="#ffffff" rx="2" />
+                            <rect x="18" y="18" width="9" height="9" fill="#4F46E5" rx="1" />
+
+                            <rect x="65" y="10" width="25" height="25" fill="#4F46E5" rx="4" />
+                            <rect x="69" y="14" width="17" height="17" fill="#ffffff" rx="2" />
+                            <rect x="73" y="18" width="9" height="9" fill="#4F46E5" rx="1" />
+
+                            <rect x="10" y="65" width="25" height="25" fill="#4F46E5" rx="4" />
+                            <rect x="14" y="69" width="17" height="17" fill="#ffffff" rx="2" />
+                            <rect x="18" y="73" width="9" height="9" fill="#4F46E5" rx="1" />
+
+                            <rect x="42" y="12" width="6" height="6" fill="#1E1B4B" rx="1" />
+                            <rect x="52" y="12" width="6" height="6" fill="#1E1B4B" rx="1" />
+                            <rect x="42" y="24" width="16" height="6" fill="#4F46E5" rx="1" />
+                            
+                            <rect x="12" y="42" width="6" height="16" fill="#1E1B4B" rx="1" />
+                            <rect x="24" y="42" width="16" height="6" fill="#4F46E5" rx="1" />
+                            <rect x="45" y="45" width="10" height="10" fill="#6366F1" rx="2" />
+                            <rect x="60" y="42" width="6" height="16" fill="#1E1B4B" rx="1" />
+                            <rect x="72" y="42" width="16" height="6" fill="#4F46E5" rx="1" />
+
+                            <rect x="42" y="65" width="6" height="16" fill="#1E1B4B" rx="1" />
+                            <rect x="52" y="75" width="16" height="6" fill="#4F46E5" rx="1" />
+                            <rect x="72" y="65" width="16" height="16" fill="#1E1B4B" rx="2" />
+                          </svg>
+
+                          <div class="absolute inset-0 bg-indigo-600/10 rounded-xl opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                            <span class="bg-indigo-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow">
+                              Scan to Pay Me
+                            </span>
+                          </div>
+                        </div>
+
+                        ${state.myQrRequestAmount ? `
+                          <span class="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+                            Requesting: $${parseFloat(state.myQrRequestAmount).toFixed(2)}
+                          </span>
+                        ` : ''}
+                      </div>
+
+                      <div class="max-w-xs mx-auto text-left">
+                        <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                          Request Specific Amount (Optional)
+                        </label>
+                        <div class="relative">
+                          <i data-lucide="dollar-sign" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Enter amount (e.g. 15.00)"
+                            value="${state.myQrRequestAmount}"
+                            oninput="state.myQrRequestAmount = this.value; render();"
+                            class="w-full pl-8 pr-3 py-2 rounded-xl border text-xs outline-none ${state.darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}"
+                          />
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-center gap-2 max-w-xs mx-auto">
+                        <button
+                          type="button"
+                          onclick="showNotification('Payment link copied to clipboard!')"
+                          class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow flex items-center justify-center gap-1.5"
+                        >
+                          <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Share Link
+                        </button>
+                        <button
+                          type="button"
+                          onclick="showNotification('QR Code saved to photos!')"
+                          class="px-3 py-2 rounded-xl border text-xs font-semibold ${state.darkMode ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-200 hover:bg-slate-100'}"
+                        >
+                          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        </button>
+                      </div>
+                    </div>
+                  `}
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      modalContainer.innerHTML = html;
+    }
+
+    // Initial App Render
+    window.onload = function() {
+      render();
+    };
+  </script>
+</body>
+</html>
